@@ -1,0 +1,6 @@
+dataset/*
+*.bin
+processed_images/*
+*.png
+*.tiff
+*.csv

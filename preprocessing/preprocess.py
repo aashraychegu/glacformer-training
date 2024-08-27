@@ -110,8 +110,11 @@ def combine_images_side_by_side(image1, image2):
 # Converts a csv file of glacier surface coordinates and glacial bed coordinates to an image mask the same size as the input image
 # uses an offset to correct for issues with the data
 def csv_to_mask(img, raw_data, offset):
+    # adds the offset to fix the mask
     csv = raw_data[["x_surface", "y_surface", "x_bed", "y_bed"]] + offset
+    # flips the csv file to ensure the mask is the correct way up
     csv = csv[::-1].reset_index(drop=True)
+    # adds the start and end points to the csv file to ensure the mask stretches from the edges of the images
     top = pd.DataFrame(
         {
             "x_surface": 0,
@@ -138,6 +141,7 @@ def csv_to_mask(img, raw_data, offset):
 
     # Loop over the rows of the csv file
     for i in range(len(csv) - 1):
+        # interpolates between the current row and the next row for the edges of the polygons
         crow = csv.iloc[i]
         nrow = csv.iloc[i + 1]
 

@@ -16,7 +16,7 @@ import shutil
 import os
 import warnings
 import time
-import sys
+import shutil
 
 warnings.filterwarnings("ignore")
 
@@ -172,11 +172,13 @@ parser.add_argument(
 parser.add_argument(
     "--raw_data_folder", type=str, help="Path to the raw data folder", default=""
 )
-parser.add_argument("--images_folder", type=str, help="Path to the images folder")
+parser.add_argument(
+    "--images_folder", type=str, help="Path to the temporary images folder"
+)
 parser.add_argument(
     "--token",
     type=str,
-    help="The throwaway auth token",
+    help="The auth token for pushing the dataset",
     default="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",
 )
 parser.add_argument(
@@ -185,8 +187,18 @@ parser.add_argument(
 parser.add_argument(
     "--skip_existing", type=bool, help="Skip existing folders", default=True
 )
+parser.add_argument(
+    "--dataset_folder",
+    type=str,
+    help="Path to the dataset folder",
+    default=pl.Path(__file__).parent / "dataset",
+)
+parser.add_argument(
+    "--delete_old_datasets", type=bool, help="Delete old offsets", default=False
+)
 parser.add_argument("--debug", type=bool, help="Debug mode", default=False)
 parser.add_argument("--use_new_data", type=bool, help="Use new data", default=True)
+parser.add_Argument("--push_to_hub", type=bool, help="Push to hub", default=True)
 args = parser.parse_args()
 
 if args.raw_data_directories_file != "@NA":
@@ -210,7 +222,7 @@ else:
 raw_data_folder = pl.Path(args.raw_data_folder)
 images_folder = pl.Path(args.images_folder)
 images_folder.mkdir(parents=True, exist_ok=True)
-
+dataset_folder = pl.Path(args.dataset_folder)
 
 csvs = list((raw_data_folder / "csvs").glob("*.csv"))
 imgs = list((raw_data_folder / "tiffs").glob("*.tiff"))
@@ -258,7 +270,8 @@ else:
         new_offsets_data["Offset"] = list(itertools.repeat(-1, len(matched_pairs)))
 
         new_offsets_data.loc[
-            new_offsets_data["Folder_Name"].isin(existing_offsets["Folder_Name"]), "Offset"
+            new_offsets_data["Folder_Name"].isin(existing_offsets["Folder_Name"]),
+            "Offset",
         ] = offsets_data.loc[
             offsets_data["Folder_Name"].isin(new_offsets_data["Folder_Name"]), "Offset"
         ]
@@ -356,11 +369,13 @@ print(f"{len(image_paths)} images and {len(mask_paths)} masks")
 dataset = Dataset.from_dict({"image": sorted(image_paths), "label": sorted(mask_paths)})
 dataset = dataset.cast_column("image", DSImage())
 dataset = dataset.cast_column("label", DSImage())
-dataset_save_path = (
-    images_folder.parent / "dataset" / time.strftime(r"%Y_%m_%d-%H_%M_%S")
-)
+dataset_save_path = dataset_folder / time.strftime(r"%Y_%m_%d-%H_%M_%S")
 print(dataset)
 print(dataset.info)
 print(dataset.features)
+if args.delete_old_datasets:
+    shutil.rmtree(dataset_folder)
+dataset_folder.mkdir(parents=True, exist_ok=True)
 dataset.save_to_disk(dataset_save_path)
-dataset.push_to_hub("glacierscopessegmentation/scopes_test", token=args.token)
+if args.push_to_hub or not args.token:
+    dataset.push_to_hub("glacierscopessegmentation/scopes_test", token=args.token)

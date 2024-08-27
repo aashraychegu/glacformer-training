@@ -18,15 +18,19 @@ import warnings
 import time
 import shutil
 
+
+# Disable the decompression bomb warning you get when opening up the .tiff file
 warnings.filterwarnings("ignore")
 
+# Helper methods
 
+# Replaces one color with another in an image
 def replace_color_numpy(image, orig_color, replacement_color):
     data = np.array(image.convert("RGB"))
     data[(data == orig_color).all(axis=-1)] = replacement_color
     return Image.fromarray(data, mode="RGB")
 
-
+# helps visualize the pixels of an image easier
 def visualize_pixels(image):
     image = replace_color_numpy(image, [0, 0, 0], [255, 0, 0])
     image = replace_color_numpy(image, [1, 1, 1], [0, 255, 0])
@@ -34,17 +38,18 @@ def visualize_pixels(image):
 
     return image
 
-
+# Converts an image from cv2 to PIL
 def convert_from_cv2_to_image(img: np.ndarray) -> Image:
     # return Image.fromarray(img)
     return Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
 
-
+# Converts an image from PIL to cv2
 def convert_from_image_to_cv2(img: Image) -> np.ndarray:
     # return np.asarray(img)
     return cv2.cvtColor(src=np.array(img, dtype=np.uint8), code=cv2.COLOR_RGB2BGR)
 
-
+# Splits an longer image into a series of smaller images with a given overlap
+# to reduce memory costs it takes in the length, input size and returns a list of valid indices
 def window_with_remainder(length, overlap, input_size):
     testarray = np.arange(0, input_size)
     return np.vstack(
@@ -56,7 +61,7 @@ def window_with_remainder(length, overlap, input_size):
         )
     )[:, [0, -1]] + [0, 1]
 
-
+# does canny edge detection on an image
 def canny_image(image: Image):
     # Read the image
 
@@ -90,7 +95,7 @@ def canny_image(image: Image):
 
     return convert_from_cv2_to_image(combined_image.transpose((1, 0, 2)))
 
-
+# Combines two images side by side for easier viewing
 def combine_images_side_by_side(image1, image2):
     # Get the dimensions of the images
     width1, height1 = image1.size
@@ -102,7 +107,8 @@ def combine_images_side_by_side(image1, image2):
     new_image.paste(image2, (width1, 0))
     return new_image
 
-
+# Converts a csv file of glacier surface coordinates and glacial bed coordinates to an image mask the same size as the input image
+# uses an offset to correct for issues with the data
 def csv_to_mask(img, raw_data, offset):
     csv = raw_data[["x_surface", "y_surface", "x_bed", "y_bed"]] + offset
     csv = csv[::-1].reset_index(drop=True)
@@ -160,7 +166,7 @@ def csv_to_mask(img, raw_data, offset):
     del draw
     return mask_base
 
-
+# adds command line arguments for the script
 p = pprint.PrettyPrinter(indent=4)
 parser = argparse.ArgumentParser(description="Preprocessing script")
 parser.add_argument(
@@ -201,6 +207,8 @@ parser.add_argument("--use_new_data", type=bool, help="Use new data", default=Tr
 parser.add_Argument("--push_to_hub", type=bool, help="Push to hub", default=True)
 args = parser.parse_args()
 
+# Check if the raw data directories file is provided
+# If it is, read the file and move all the csvs and tiffs to a new directory
 if args.raw_data_directories_file != "@NA":
     with open(args.raw_data_directories_file, "r") as f:
         raw_data_directories = f.read().splitlines()
@@ -219,16 +227,19 @@ else:
     if args.raw_data_folder == "":
         raise ValueError("Please provide the path to the raw data folder")
 
+# converts given paths to pathlib objects for easier use
 raw_data_folder = pl.Path(args.raw_data_folder)
 images_folder = pl.Path(args.images_folder)
 images_folder.mkdir(parents=True, exist_ok=True)
 dataset_folder = pl.Path(args.dataset_folder)
 
+# gets all proided csvs and images
 csvs = list((raw_data_folder / "csvs").glob("*.csv"))
 imgs = list((raw_data_folder / "tiffs").glob("*.tiff"))
 
 print(f"Found {len(csvs)} CSV files and {len(imgs)} images")
 
+# creates a dictionary of the csvs and images with the name of the file, and the path to the file
 clean_csv_names = {}
 for x in csvs:
     clean_csv_names[str(x.resolve()).split("\\")[-1].replace(".csv", "")] = x
@@ -237,13 +248,14 @@ clean_img_names = {}
 for x in imgs:
     clean_img_names[str(x.resolve()).split("\\")[-1].replace(".tiff", "")] = x
 
+# finds the common names between the csvs and images
 matched_pairs = sorted(
     list(set(clean_csv_names.keys()).intersection(set(clean_img_names.keys())))
 )
 p.pprint(matched_pairs)
 print(f"Found {len(matched_pairs)} pairs of images and CSV files")
 
-
+# creates a new offsets file
 def new_offsets_file(offsets_file):
     offsets_data = pd.DataFrame(columns=["Folder_Name", "Offset"])
     offsets_data["Folder_Name"] = matched_pairs
@@ -251,10 +263,11 @@ def new_offsets_file(offsets_file):
     offsets_data.to_csv(offsets_file, index=False)
     print(f"Created offsets.csv in {images_folder}")
 
-
+# creates offsets.csv if it doesn't exist or if the user wants to overwrite it
 offsets_file = images_folder / "offsets.csv"
 if not offsets_file.exists() or args.overwrite_offsets:
     new_offsets_file(offsets_file)
+    print(f"Created offsets.csv in {images_folder}")
 else:
     offsets_data = pd.read_csv(offsets_file)
     print(
@@ -268,7 +281,7 @@ else:
         new_offsets_data = pd.DataFrame(columns=["Folder_Name", "Offset"])
         new_offsets_data["Folder_Name"] = matched_pairs
         new_offsets_data["Offset"] = list(itertools.repeat(-1, len(matched_pairs)))
-
+        # Helps merge existing offsets with any new data
         new_offsets_data.loc[
             new_offsets_data["Folder_Name"].isin(existing_offsets["Folder_Name"]),
             "Offset",
@@ -280,15 +293,18 @@ else:
         print(f"Combining offsets.csv with new data")
         offsets_data = new_offsets_data.fillna(-1)
 
-
+# helps store image and mask paths for creating the dataset
 image_paths = []
 mask_paths = []
 
+# loops over all the matched pairs of images and csvs
 for count, matched_pair in enumerate(matched_pairs):
     pair_folder = images_folder / matched_pair
+    # reads offset
     curr_offset = offsets_data[offsets_data["Folder_Name"] == matched_pair][
         "Offset"
     ].values[0]
+    # skips the folder if it already exists and the user wants to skip existing folders
     if (pair_folder.exists() and args.skip_existing) and not (
         curr_offset == -1 or curr_offset == float("nan")
     ):
@@ -300,17 +316,20 @@ for count, matched_pair in enumerate(matched_pairs):
         )
         mask_paths.extend([str(x.resolve()) for x in chunked_mask_folder.glob("*.png")])
         continue
+    # reads the raw image and csv
     img_source = clean_img_names[matched_pair]
     csv_source = clean_csv_names[matched_pair]
-
     raw_img = Image.open(img_source)
     raw_data = pd.read_csv(csv_source)
 
+    # crops the image to the relevant section
     img = raw_img.copy().crop((0, 430, raw_img.size[0], 1790))
     img = Image.fromarray(np.divide(np.array(img), 2**8 - 1)).convert("L")
-    mask_base = csv_to_mask(img, raw_data, 0)
 
+    # sets the offset if it doesn't exist
     if curr_offset == -1 or curr_offset == float("nan"):
+        # generates the mask for setting the offset
+        mask_base = csv_to_mask(img, raw_data, 0)
         print(
             f"Processing {matched_pair} | {count+1} / {len(matched_pairs)} with the default offset of -1"
         )
@@ -328,12 +347,18 @@ for count, matched_pair in enumerate(matched_pairs):
         offset = offsets_data[offsets_data["Folder_Name"] == matched_pair][
             "Offset"
         ].values[0]
-    print(f"Processing {matched_pair} with offset {offset}")
+    print(
+        f"Processing {matched_pair} {count+1} / {len(matched_pairs)} with offset {offset}"
+    )
 
+    # generates the mask
     mask = csv_to_mask(img, raw_data, offset)
+    # creates the folder for the image/csv pair
     pair_folder.mkdir(parents=True, exist_ok=True)
-    print("Mask Generation complete. \n Chunking Started")
     img = canny_image(img)
+    print("Mask Generation and Canny Processing complete. \n Chunking Started")
+
+    # can show the generated mask and image for debugging purposes
     if args.debug:
         combine_images_side_by_side(
             img.crop((0, 0, 750, img.size[1])),
@@ -341,13 +366,20 @@ for count, matched_pair in enumerate(matched_pairs):
                 Image.FLIP_LEFT_RIGHT
             ),
         ).show()
-    cropsection = window_with_remainder(512, 128, mask_base.size[0])
+
+    # starts cropping the image 
+    
+    # gets coordinates for cropping the image
+    cropping_coordinates = window_with_remainder(512, 128, mask_base.size[0])
+
+    # creates folder for the saved chunks
     chunked_image_folder = pair_folder / "chunked_images"
     chunked_mask_folder = pair_folder / "chunked_masks"
     chunked_image_folder.mkdir(parents=True, exist_ok=True)
     chunked_mask_folder.mkdir(parents=True, exist_ok=True)
-    print("starting cannying")
-    for count, (start, end) in enumerate(cropsection):
+    
+    # loops over the cropping coordinates and saves the cropped chunks
+    for count, (start, end) in enumerate(cropping_coordinates):
         current_chunk_path = chunked_image_folder / f"cimg_{count}_{start}_{end}.png"
         current_mask_path = chunked_mask_folder / f"cmask_{count}_{start}_{end}.png"
         image_paths.append(str(current_chunk_path.resolve()))
@@ -358,7 +390,7 @@ for count, matched_pair in enumerate(matched_pairs):
             lambda p: min(p, 2)
         ).save(current_mask_path)
         print(
-            f"{count+1}/{len(cropsection)} | {matched_pair.split('-')[0]} | {start}-{end}",
+            f"{count+1}/{len(cropping_coordinates)} | {matched_pair.split('-')[0]} | {start}-{end}",
             end="\r",
         )
     print("\nFinished", "\n" * 3)
@@ -370,12 +402,19 @@ dataset = Dataset.from_dict({"image": sorted(image_paths), "label": sorted(mask_
 dataset = dataset.cast_column("image", DSImage())
 dataset = dataset.cast_column("label", DSImage())
 dataset_save_path = dataset_folder / time.strftime(r"%Y_%m_%d-%H_%M_%S")
+# prints dataset information
 print(dataset)
 print(dataset.info)
 print(dataset.features)
+
+# can delete old datasets
 if args.delete_old_datasets:
     shutil.rmtree(dataset_folder)
+
+# ensures there is a dataset folder
 dataset_folder.mkdir(parents=True, exist_ok=True)
 dataset.save_to_disk(dataset_save_path)
+
+# pushes the dataset to the hub if the user wants
 if args.push_to_hub or not args.token:
     dataset.push_to_hub("glacierscopessegmentation/scopes_test", token=args.token)

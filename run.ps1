@@ -1,0 +1,1 @@
+clear && python .\preprocessing\preprocess.py --raw_data_folder .\raw_data\ --images_folder ./processed_images --skip_existing True

@@ -24,7 +24,7 @@ parser.add_argument(
     "--load_from",
     type=str,
     help="Path to load the pre-trained model from",
-    default=parent_dir / "glacformer",
+    default=parent_dir.parent / "glacformer",
 )
 parser.add_argument(
     "--token",
@@ -87,9 +87,9 @@ if load_from == "new":
         num_labels=num_labels,
         label2id=label2id,
         id2label=id2label,
-        depths=[2, 3, 4, 3],
-        hidden_sizes=[64, 128, 320, 512],
-        decoder_hidden_size=256 * 3,
+        depths=[4, 3, 3, 2],
+        hidden_sizes=[64, 128, 256, 512],
+        decoder_hidden_size=128*7,
     )
     testmodel = SegformerForSemanticSegmentation(test_config)
 else:

@@ -1,0 +1,12 @@
+numpy
+gradio
+datasets
+transformers
+pillow
+torch
+numpy
+cv2
+evaluate
+huggingface
+huggingface_hub
+albumentations

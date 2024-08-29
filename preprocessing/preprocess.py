@@ -24,11 +24,13 @@ warnings.filterwarnings("ignore")
 
 # Helper methods
 
+
 # Replaces one color with another in an image
 def replace_color_numpy(image, orig_color, replacement_color):
     data = np.array(image.convert("RGB"))
     data[(data == orig_color).all(axis=-1)] = replacement_color
     return Image.fromarray(data, mode="RGB")
+
 
 # helps visualize the pixels of an image easier
 def visualize_pixels(image):
@@ -38,15 +40,18 @@ def visualize_pixels(image):
 
     return image
 
+
 # Converts an image from cv2 to PIL
 def convert_from_cv2_to_image(img: np.ndarray) -> Image:
     # return Image.fromarray(img)
     return Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
 
+
 # Converts an image from PIL to cv2
 def convert_from_image_to_cv2(img: Image) -> np.ndarray:
     # return np.asarray(img)
     return cv2.cvtColor(src=np.array(img, dtype=np.uint8), code=cv2.COLOR_RGB2BGR)
+
 
 # Splits an longer image into a series of smaller images with a given overlap
 # to reduce memory costs it takes in the length, input size and returns a list of valid indices
@@ -60,6 +65,7 @@ def window_with_remainder(length, overlap, input_size):
             )[::overlap],
         )
     )[:, [0, -1]] + [0, 1]
+
 
 # does canny edge detection on an image
 def canny_image(image: Image):
@@ -95,6 +101,7 @@ def canny_image(image: Image):
 
     return convert_from_cv2_to_image(combined_image.transpose((1, 0, 2)))
 
+
 # Combines two images side by side for easier viewing
 def combine_images_side_by_side(image1, image2):
     # Get the dimensions of the images
@@ -106,6 +113,7 @@ def combine_images_side_by_side(image1, image2):
     new_image.paste(image1, (0, 0))
     new_image.paste(image2, (width1, 0))
     return new_image
+
 
 # Converts a csv file of glacier surface coordinates and glacial bed coordinates to an image mask the same size as the input image
 # uses an offset to correct for issues with the data
@@ -170,6 +178,7 @@ def csv_to_mask(img, raw_data, offset):
     del draw
     return mask_base
 
+
 # adds command line arguments for the script
 p = pprint.PrettyPrinter(indent=4)
 parser = argparse.ArgumentParser(description="Preprocessing script")
@@ -208,7 +217,7 @@ parser.add_argument(
 )
 parser.add_argument("--debug", type=bool, help="Debug mode", default=False)
 parser.add_argument("--use_new_data", type=bool, help="Use new data", default=True)
-parser.add_Argument("--push_to_hub", type=bool, help="Push to hub", default=True)
+parser.add_argument("--push_to_hub", type=bool, help="Push to hub", default=True)
 args = parser.parse_args()
 
 # Check if the raw data directories file is provided
@@ -259,6 +268,7 @@ matched_pairs = sorted(
 p.pprint(matched_pairs)
 print(f"Found {len(matched_pairs)} pairs of images and CSV files")
 
+
 # creates a new offsets file
 def new_offsets_file(offsets_file):
     offsets_data = pd.DataFrame(columns=["Folder_Name", "Offset"])
@@ -266,6 +276,7 @@ def new_offsets_file(offsets_file):
     offsets_data["Offset"] = list(itertools.repeat(-1, len(matched_pairs)))
     offsets_data.to_csv(offsets_file, index=False)
     print(f"Created offsets.csv in {images_folder}")
+
 
 # creates offsets.csv if it doesn't exist or if the user wants to overwrite it
 offsets_file = images_folder / "offsets.csv"
@@ -371,8 +382,8 @@ for count, matched_pair in enumerate(matched_pairs):
             ),
         ).show()
 
-    # starts cropping the image 
-    
+    # starts cropping the image
+
     # gets coordinates for cropping the image
     cropping_coordinates = window_with_remainder(512, 128, mask_base.size[0])
 
@@ -381,7 +392,7 @@ for count, matched_pair in enumerate(matched_pairs):
     chunked_mask_folder = pair_folder / "chunked_masks"
     chunked_image_folder.mkdir(parents=True, exist_ok=True)
     chunked_mask_folder.mkdir(parents=True, exist_ok=True)
-    
+
     # loops over the cropping coordinates and saves the cropped chunks
     for count, (start, end) in enumerate(cropping_coordinates):
         current_chunk_path = chunked_image_folder / f"cimg_{count}_{start}_{end}.png"

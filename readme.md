@@ -30,3 +30,7 @@ There are three directories that hold data
 
 ### Glacformer
 This holds the internal model files during training. The model is then pushed to huggingface hub.
+
+
+## Next Steps/Todo
+ - Instead of saving a png file, save a .jfif file for lower file sizes

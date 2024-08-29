@@ -1,7 +1,6 @@
-dataset/*
+dataset/*/*
 *.bin
-processed_images/
-*.png
-*.tiff
-*.csv
+processed_images/*/*/*.png
+raw_data/tiffs/*.tiff
+raw_data/csvs/*.csv
 test.py

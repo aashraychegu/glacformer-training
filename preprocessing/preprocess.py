@@ -74,32 +74,37 @@ def canny_image(image: Image):
     # Convert the image to grayscale
     gray = cv2.cvtColor(convert_from_image_to_cv2(image), cv2.COLOR_BGR2GRAY)
 
+    mean_power = np.mean(gray) / 255
+    print(f"Mean power of the grayscale image: {mean_power}")
+    std = np.std(gray) / 255
+    print(f"Variance of the grayscale image: {std}")
+
+    t1 = ((mean_power - (2 * std)) * 255, (mean_power - (1 * std)) * 255)
+    t2 = ((mean_power + (1 * std)) * 255, (mean_power + (2 * std)) * 255)
+    t3 = ((mean_power - (1 * std)) * 255, (mean_power + (1 * std)) * 255)
+
     # Perform Canny edge detection on the grayscale image with two different thresholds
-    edges1 = cv2.Canny(gray, threshold1=25, threshold2=100)
-    edges2 = cv2.Canny(gray, threshold1=100, threshold2=150)
+    edges1 = cv2.Canny(gray, threshold1=t1[0], threshold2=t1[1])
+    edges2 = cv2.Canny(
+        cv2.GaussianBlur(gray, (11, 11), std * 4, std / 2),
+        threshold1=t2[0],
+        threshold2=t2[1],
+    )
+    edges3 = cv2.Canny(gray, threshold1=t3[0], threshold2=t3[1])
 
-    # Set the thickness of the lines
-    line_thickness = 8
+    kernel = np.ones((10, 10), np.uint8)
+    edges3 = cv2.dilate(edges3, kernel, iterations=1)
 
-    # Create a structuring element for dilation
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (line_thickness, line_thickness))
+    combined_image = np.zeros((gray.shape[0], gray.shape[1], 3), dtype=np.uint8)
 
-    # Dilate the edges2 image to make the lines thicker
-    edges2_thicker = cv2.dilate(edges2, kernel)
+    combined_image[:, :, 0] = gray
 
-    # Create a blank image with the same dimensions as the original image
-    combined_image = np.zeros((image.size[0], image.size[1], 3), dtype=np.uint8)
-    # Set the first color channel as the original image
-
-    combined_image[:, :, 0] = gray.transpose()
-
-    # Set the second color channel as edges1
-    combined_image[:, :, 1] = edges1.transpose()
+    combined_image[:, :, 1] = edges1 + edges3 * 0.3
 
     # Set the third color channel as edges2
-    combined_image[:, :, 2] = edges2_thicker.transpose()
+    combined_image[:, :, 2] = edges2 + edges3 * 0.3
 
-    return convert_from_cv2_to_image(combined_image.transpose((1, 0, 2)))
+    return convert_from_cv2_to_image(combined_image)
 
 
 # Combines two images side by side for easier viewing
@@ -385,7 +390,7 @@ for count, matched_pair in enumerate(matched_pairs):
     # starts cropping the image
 
     # gets coordinates for cropping the image
-    cropping_coordinates = window_with_remainder(512, 128, mask_base.size[0])
+    cropping_coordinates = window_with_remainder(512, 128, mask.size[0])
 
     # creates folder for the saved chunks
     chunked_image_folder = pair_folder / "chunked_images"
@@ -401,7 +406,7 @@ for count, matched_pair in enumerate(matched_pairs):
         mask_paths.append(str(current_mask_path.resolve()))
         resized = img.crop((start, 0, end, img.size[1])).resize((512, 512))
         resized.save(current_chunk_path)
-        mask_base.crop((start, 0, end, mask_base.size[1])).resize((512, 512)).point(
+        mask.crop((start, 0, end, mask.size[1])).resize((512, 512)).point(
             lambda p: min(p, 2)
         ).save(current_mask_path)
         print(

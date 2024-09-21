@@ -5,3 +5,4 @@ raw_data/tiffs/*.tiff
 raw_data/csvs/*.csv
 test.py
 *.arrow
+test2.ipynb

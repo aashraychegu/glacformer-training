@@ -96,14 +96,31 @@ def canny_image(image: Image):
     edges3 = cv2.dilate(edges3, kernel, iterations=1)
 
     combined_image = np.zeros((gray.shape[0], gray.shape[1], 3), dtype=np.uint8)
+    edges1 = cv2.Canny(gray, threshold1=t1[0], threshold2=t1[1])
+    edges2 = cv2.Canny(
+        cv2.GaussianBlur(gray, (11, 11), std * 4, std / 2),
+        threshold1=t2[0],
+        threshold2=t2[1],
+    )
+    edges3 = cv2.Canny(gray, threshold1=t3[0], threshold2=t3[1])
 
+    kernel = np.ones((10, 10), np.uint8)
+    edges3 = cv2.dilate(edges3, kernel, iterations=1)
+
+    combined_image = np.zeros((gray.shape[0], gray.shape[1], 3), dtype=np.uint8)
+
+    combined_image[:, :, 0] = gray
+
+    combined_image[:, :, 1] = edges1 + edges3 * 0.3
     combined_image[:, :, 0] = gray
 
     combined_image[:, :, 1] = edges1 + edges3 * 0.3
 
     # Set the third color channel as edges2
     combined_image[:, :, 2] = edges2 + edges3 * 0.3
+    combined_image[:, :, 2] = edges2 + edges3 * 0.3
 
+    return convert_from_cv2_to_image(combined_image)
     return convert_from_cv2_to_image(combined_image)
 
 
@@ -390,6 +407,7 @@ for count, matched_pair in enumerate(matched_pairs):
     # starts cropping the image
 
     # gets coordinates for cropping the image
+    cropping_coordinates = window_with_remainder(512, 128, mask.size[0])
     cropping_coordinates = window_with_remainder(512, 128, mask.size[0])
 
     # creates folder for the saved chunks

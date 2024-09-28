@@ -34,7 +34,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--save_to",
-    type=int,
+    type=str,
     help="where to save the model to once training is over",
     default="@source",
 )

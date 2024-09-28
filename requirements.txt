@@ -1,11 +1,14 @@
 numpy
+scikit-learn
 gradio
 datasets
 transformers
 pillow
 torch
 numpy
-cv2
+torchvision
+torchaudio
+opencv-python
 evaluate
 huggingface
 huggingface_hub

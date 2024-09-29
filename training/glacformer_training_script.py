@@ -65,7 +65,7 @@ hf_model_name = "glacierscopessegmentation/glacier_segmentation_transformer"
 huggingface_hub.login(token=token)
 ds = load_dataset(
     "glacierscopessegmentation/scopes",
-    keep_in_memory=True,
+    # keep_in_memory=True,
 )
 train_ds = ds["train"].shuffle(seed=42)
 test_ds = ds["test"]

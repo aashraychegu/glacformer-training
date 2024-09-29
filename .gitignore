@@ -6,3 +6,5 @@ raw_data/csvs/*.csv
 test.py
 *.arrow
 test2.ipynb
+wandb/*
+wandb

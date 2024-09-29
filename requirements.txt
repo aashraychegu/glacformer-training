@@ -14,3 +14,4 @@ huggingface
 huggingface_hub
 albumentations
 accelerate
+wandb

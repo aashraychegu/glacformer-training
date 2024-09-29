@@ -17,6 +17,10 @@ from transformers import (
     SegformerForSemanticSegmentation,
 )
 import pathlib as pl
+
+import os
+os.environ["WANDB_PROJECT"]="glacformer_training"
+
 # Get the path of the parent directory for this file
 parent_dir = pathlib.Path(__file__).resolve().parent
 
@@ -208,12 +212,14 @@ training_args = TrainingArguments(
     save_strategy="epoch",  # The checkpoint save strategy to adopt during training
     save_steps=1,  # Number of updates steps before two checkpoint saves
     eval_steps=1,  # Number of update steps before two evaluations
-    # logging_steps=30,  # Number of update steps before logging learning rate and other metrics
+    logging_steps=1,  # Number of update steps before logging learning rate and other metrics
     remove_unused_columns=False,  # Whether to remove columns not used by the model when using a dataset
     fp16=True,  # Whether to use 16-bit float precision instead of 32-bit for saving memory
     tf32=True,  # Whether to use tf32 precision instead of 32-bit for saving memory
     gradient_accumulation_steps=4,  # Number of updates steps to accumulate before performing a backward/update pass for saving memory
     hub_model_id=hf_model_name,  # The model ID on the Hugging Face model hub
+    load_best_model_at_end = True,
+    report_to = "wandb"
 )
 
 # Define the trainer

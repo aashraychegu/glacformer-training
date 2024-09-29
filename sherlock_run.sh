@@ -1,3 +1,3 @@
-ml python/3.12.1
 pip install -r requirements.txt
+wandb login 8a2ce1929f5f1d40c72093dc901f3cfe3e945b2e
 python3 training/glacformer_training_script.py

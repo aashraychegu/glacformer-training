@@ -2,7 +2,7 @@ numpy
 scikit-learn
 gradio
 datasets
-transformers
+transformers[torch]
 pillow
 torch
 numpy
@@ -13,3 +13,4 @@ evaluate
 huggingface
 huggingface_hub
 albumentations
+accelerate

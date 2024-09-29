@@ -9,13 +9,14 @@ import evaluate
 import huggingface_hub
 import albumentations as A
 from datasets import load_dataset
+import datasets
 from transformers import TrainingArguments, Trainer
 from transformers import (
     SegformerImageProcessor,
     SegformerConfig,
     SegformerForSemanticSegmentation,
 )
-
+import pathlib as pl
 # Get the path of the parent directory for this file
 parent_dir = pathlib.Path(__file__).resolve().parent
 
@@ -63,12 +64,23 @@ torch.backends.cuda.matmul.allow_tf32 = True
 
 hf_model_name = "glacierscopessegmentation/glacier_segmentation_transformer"
 huggingface_hub.login(token=token)
+data_location = pl.Path(__file__).parent / "data"
+
 ds = load_dataset(
     "glacierscopessegmentation/scopes",
-    # keep_in_memory=True,
+    keep_in_memory=True,
+    cache_dir = data_location
 )
-train_ds = ds["train"].shuffle(seed=42)
+# data_location.mkdir(parents=True, exist_ok=True)
+# print(data_location)
+# ds.save_to_disk(data_location)
+# del ds
+# ds = datasets.load_from_disk(data_location)
+# input()
+train_ds = ds["train"]
 test_ds = ds["test"]
+ds.cleanup_cache_files()
+del ds
 id2label = {
     "0": "sky",  # This is given by the rgb value of 00 00 00 for the mask
     "1": "surface-to-bed",  # This is given by the rgb value of 01 01 01 for the mask
@@ -77,8 +89,9 @@ id2label = {
 id2label = {int(k): v for k, v in id2label.items()}
 label2id = {v: k for k, v in id2label.items()}
 num_labels = len(id2label)
-len(train_ds), len(test_ds)
-
+print(len(train_ds), len(test_ds))
+train_ds.cleanup_cache_files()
+test_ds.cleanup_cache_files()
 test_image_processor = SegformerImageProcessor.from_pretrained("nvidia/MiT-b0")
 
 if load_from == "new":
@@ -87,8 +100,9 @@ if load_from == "new":
         num_labels=num_labels,
         label2id=label2id,
         id2label=id2label,
-        depths=[4, 3, 3, 2],
-        hidden_sizes=[64, 128, 256, 512],
+        depths=[6, 4, 3, 2],
+        hidden_sizes=[64, 128, 384, 512],
+        num_attention_heads = [1,2,6,8],
         decoder_hidden_size=128*7,
     )
     testmodel = SegformerForSemanticSegmentation(test_config)
@@ -105,9 +119,9 @@ else:
 
 transform = A.Compose(
     [
-        A.ElasticTransform(p=0.3),
-        A.GridDistortion(p=0.3),
-        A.Perspective(p=0.3),
+        A.ElasticTransform(p=0.7),
+        A.GridDistortion(p=0.7),
+        A.Perspective(p=0.7),
     ],
     additional_targets={"mask": "mask"},
 )
@@ -136,7 +150,6 @@ def val_transforms(example_batch):
     inputs = test_image_processor(images, labels)
     return inputs
 
-
 # this makes the transforms happen when a batch is loaded
 train_ds.set_transform(train_transforms)
 test_ds.set_transform(val_transforms)
@@ -157,7 +170,7 @@ def compute_metrics(eval_pred):
         logits_tensor = torch.from_numpy(logits).cpu()
 
         logits_tensor = logits_tensor.argmax(dim=1)
-        logits_tensor = logits_tensor.unsqueeze(1).to(float).detach().cpu().numpy()
+        logits_tensor = logits_tensor.unsqueeze(1).to(float).detach().cpu()
         # this can lead to very high ram usage for the upscaling
         logits_tensor = nn.functional.interpolate(
             logits_tensor,
@@ -167,7 +180,7 @@ def compute_metrics(eval_pred):
         )
 
         logits_tensor = torch.squeeze(logits_tensor, dim=1)
-        pred_labels = logits_tensor.detach().cpu().numpy()
+        pred_labels = logits_tensor.detach().cpu()
         # Computes metrics
         metrics = metric.compute(
             predictions=pred_labels,
@@ -191,7 +204,7 @@ training_args = TrainingArguments(
     auto_find_batch_size=True,  # Whether to automatically find an appropriate batch size
     save_total_limit=3,  # Limit the total amount of checkpoints and delete the older checkpoints
     # eval_accumulation_steps=1,  # Number of steps to accumulate gradients before performing a backward/update pass
-    evaluation_strategy="epoch",  # The evaluation strategy to adopt during training
+    eval_strategy="epoch",  # The evaluation strategy to adopt during training
     save_strategy="epoch",  # The checkpoint save strategy to adopt during training
     save_steps=1,  # Number of updates steps before two checkpoint saves
     eval_steps=1,  # Number of update steps before two evaluations

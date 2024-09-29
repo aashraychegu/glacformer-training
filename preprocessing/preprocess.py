@@ -232,7 +232,13 @@ parser.add_argument(
     "--dataset_folder",
     type=str,
     help="Path to the dataset folder",
-    default=pl.Path(__file__).parent / "dataset",
+    default=pl.Path(__file__).parent.parent / "dataset",
+)
+parser.add_argument(
+    "--offsets_file",
+    type=str,
+    help="Path to the offsets_file",
+    default=pl.Path(__file__).parent / "offsets.csv",
 )
 parser.add_argument(
     "--delete_old_datasets", type=bool, help="Delete old offsets", default=False
@@ -267,6 +273,7 @@ raw_data_folder = pl.Path(args.raw_data_folder)
 images_folder = pl.Path(args.images_folder)
 images_folder.mkdir(parents=True, exist_ok=True)
 dataset_folder = pl.Path(args.dataset_folder)
+dataset_folder.mkdir(parents=True, exist_ok=True)
 
 # gets all proided csvs and images
 csvs = list((raw_data_folder / "csvs").glob("*.csv"))

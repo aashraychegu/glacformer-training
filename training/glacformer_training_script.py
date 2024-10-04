@@ -20,6 +20,8 @@ import pathlib as pl
 import datetime
 import os
 os.environ["WANDB_PROJECT"]="glacformer_training"
+os.environ["NCCL_CUMEM_ENABLE"]="0"
+os.environ["NCCL_DEBUG"] = "INFO"
 
 # Get the path of the parent directory for this file
 parent_dir = pathlib.Path(__file__).resolve().parent
@@ -47,7 +49,7 @@ parser.add_argument(
     "--learning_rate",
     type=float,
     help="The initial learning rate for Adam",
-    default=6e-5,
+    default=12e-5,
 )
 parser.add_argument(
     "--num_epochs",
@@ -201,8 +203,10 @@ def compute_metrics(eval_pred):
 
 
 # Define the training arguments
+run_name = datetime.datetime.now().strftime("SherlockCluster--%Y-%m-%d--%H-%M-%S-%Z")
 training_args = TrainingArguments(
-    output_dir="glacformer",  # The output directory for the model predictions and checkpoints
+    output_dir="glacformer/"+run_name,  # The output directory for the model predictions and checkpoints
+    overwrite_output_dir = True,
     learning_rate=learning_rate,  # The initial learning rate for Adam
     num_train_epochs=num_epochs,  # Total number of training epochs to perform
     auto_find_batch_size=True,  # Whether to automatically find an appropriate batch size
@@ -219,7 +223,7 @@ training_args = TrainingArguments(
     # gradient_accumulation_steps=4,  # Number of updates steps to accumulate before performing a backward/update pass for saving memory
     hub_model_id=hf_model_name,  # The model ID on the Hugging Face model hub
     report_to = "wandb",
-    run_name = datetime.datetime.now().strftime("Sherlock Cluster: %Y-%m-%d %H:%M:%S %Z"),
+    run_name = run_name,
     per_device_train_batch_size = 100
 )
 
@@ -233,6 +237,5 @@ trainer = Trainer(
 )
 trainer.train()
 
-if save_to == "@source":
-    save_to = load_from
-trainer.model.save_pretrained(save_to)
+if save_to == "new":
+    trainer.model.save_pretrained("glacformer/"+run_name+"/final/")

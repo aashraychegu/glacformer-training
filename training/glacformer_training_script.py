@@ -19,6 +19,7 @@ from transformers import (
 import pathlib as pl
 import datetime
 import os
+import accelerate
 os.environ["WANDB_PROJECT"]="glacformer_training"
 os.environ["NCCL_CUMEM_ENABLE"]="0"
 os.environ["NCCL_DEBUG"] = "INFO"

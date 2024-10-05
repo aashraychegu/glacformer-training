@@ -237,7 +237,7 @@ trainer = Trainer(
     compute_metrics=compute_metrics,
 )
 trainer.train()
-trainer.push_to_hub()
+trainer.push_to_hub(token = token)
 
 if save_to == "new":
     trainer.model.save_pretrained("glacformer/"+run_name+"/final/")

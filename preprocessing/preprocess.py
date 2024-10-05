@@ -121,7 +121,6 @@ def canny_image(image: Image):
     combined_image[:, :, 2] = edges2 + edges3 * 0.3
 
     return convert_from_cv2_to_image(combined_image)
-    return convert_from_cv2_to_image(combined_image)
 
 
 # Combines two images side by side for easier viewing
@@ -414,7 +413,6 @@ for count, matched_pair in enumerate(matched_pairs):
     # starts cropping the image
 
     # gets coordinates for cropping the image
-    cropping_coordinates = window_with_remainder(512, 128, mask.size[0])
     cropping_coordinates = window_with_remainder(512, 128, mask.size[0])
 
     # creates folder for the saved chunks

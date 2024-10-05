@@ -9,3 +9,6 @@ test2.ipynb
 wandb/*
 wandb
 *.safetensors
+inference/inference_inputs/*
+inference/inference_raw_imgs/*/*.png
+inference_dataset/*

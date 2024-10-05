@@ -225,7 +225,7 @@ training_args = TrainingArguments(
     hub_model_id=hf_model_name,  # The model ID on the Hugging Face model hub
     report_to = "wandb",
     run_name = run_name,
-    per_device_train_batch_size = 100
+    per_device_train_batch_size = 100,
 )
 
 # Define the trainer
@@ -237,6 +237,7 @@ trainer = Trainer(
     compute_metrics=compute_metrics,
 )
 trainer.train()
+trainer.push_to_hub()
 
 if save_to == "new":
     trainer.model.save_pretrained("glacformer/"+run_name+"/final/")

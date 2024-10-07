@@ -74,52 +74,19 @@ def canny_image(image: Image):
     # Convert the image to grayscale
     gray = cv2.cvtColor(convert_from_image_to_cv2(image), cv2.COLOR_BGR2GRAY)
 
-    mean_power = np.mean(gray) / 255
-    print(f"Mean power of the grayscale image: {mean_power}")
-    std = np.std(gray) / 255
-    print(f"Variance of the grayscale image: {std}")
-
-    t1 = ((mean_power - (2 * std)) * 255, (mean_power - (1 * std)) * 255)
-    t2 = ((mean_power + (1 * std)) * 255, (mean_power + (2 * std)) * 255)
-    t3 = ((mean_power - (1 * std)) * 255, (mean_power + (1 * std)) * 255)
-
-    # Perform Canny edge detection on the grayscale image with two different thresholds
-    edges1 = cv2.Canny(gray, threshold1=t1[0], threshold2=t1[1])
-    edges2 = cv2.Canny(
-        cv2.GaussianBlur(gray, (11, 11), std * 4, std / 2),
-        threshold1=t2[0],
-        threshold2=t2[1],
-    )
-    edges3 = cv2.Canny(gray, threshold1=t3[0], threshold2=t3[1])
-
-    kernel = np.ones((10, 10), np.uint8)
-    edges3 = cv2.dilate(edges3, kernel, iterations=1)
-
     combined_image = np.zeros((gray.shape[0], gray.shape[1], 3), dtype=np.uint8)
-    edges1 = cv2.Canny(gray, threshold1=t1[0], threshold2=t1[1])
-    edges2 = cv2.Canny(
-        cv2.GaussianBlur(gray, (11, 11), std * 4, std / 2),
-        threshold1=t2[0],
-        threshold2=t2[1],
-    )
-    edges3 = cv2.Canny(gray, threshold1=t3[0], threshold2=t3[1])
+    
+    blurred = cv2.GaussianBlur(gray,(7,7),0)
 
-    kernel = np.ones((10, 10), np.uint8)
-    edges3 = cv2.dilate(edges3, kernel, iterations=1)
-
-    combined_image = np.zeros((gray.shape[0], gray.shape[1], 3), dtype=np.uint8)
-
-    combined_image[:, :, 0] = gray
-
-    combined_image[:, :, 1] = edges1 + edges3 * 0.3
-    combined_image[:, :, 0] = gray
-
-    combined_image[:, :, 1] = edges1 + edges3 * 0.3
-
-    # Set the third color channel as edges2
-    combined_image[:, :, 2] = edges2 + edges3 * 0.3
-    combined_image[:, :, 2] = edges2 + edges3 * 0.3
-
+    green = cv2.convertScaleAbs(cv2.Laplacian(blurred,cv2.CV_32F,7))
+    blue = cv2.convertScaleAbs(cv2.Scharr(blurred,cv2.CV_32F,0,1))
+    multg= 255/max(green.flatten())
+    
+    combined_image[:,:,0] = gray
+    combined_image[:,:,1] = np.clip(np.round(green*int(multg)),0,255)
+    combined_image[:,:,2] = np.clip(np.round(blue),0,255)
+   
+    
     return convert_from_cv2_to_image(combined_image)
 
 

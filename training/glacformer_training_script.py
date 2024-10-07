@@ -239,5 +239,5 @@ trainer = Trainer(
 trainer.train()
 trainer.push_to_hub(token = token)
 
-if save_to == "new":
-    trainer.model.save_pretrained("glacformer/"+run_name+"/final/")
+trainer.model.save_pretrained("glacformer/"+run_name+"/final/")
+test_image_processor.save_pretrained("inference/sip/")

@@ -76,19 +76,17 @@ def canny_image(image: Image):
 
     combined_image = np.zeros((gray.shape[0], gray.shape[1], 3), dtype=np.uint8)
     
-    blurred = cv2.GaussianBlur(gray,(7,7),0)
+    blurred = cv2.GaussianBlur(gray,(15,15),0)
 
     green = cv2.convertScaleAbs(cv2.Laplacian(blurred,cv2.CV_32F,7))
     blue = cv2.convertScaleAbs(cv2.Scharr(blurred,cv2.CV_32F,0,1))
-    multg= 255/max(green.flatten())
     
     combined_image[:,:,0] = gray
-    combined_image[:,:,1] = np.clip(np.round(green*int(multg)),0,255)
-    combined_image[:,:,2] = np.clip(np.round(blue),0,255)
+    combined_image[:,:,1] = np.clip(np.round(green+gray),0,255)
+    combined_image[:,:,2] = np.clip(np.round(blue*.5+gray*.5),0,255)
    
     
     return convert_from_cv2_to_image(combined_image)
-
 
 # Combines two images side by side for easier viewing
 def combine_images_side_by_side(image1, image2):

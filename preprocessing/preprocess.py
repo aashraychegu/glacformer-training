@@ -75,18 +75,21 @@ def canny_image(image: Image):
     gray = cv2.cvtColor(convert_from_image_to_cv2(image), cv2.COLOR_BGR2GRAY)
 
     combined_image = np.zeros((gray.shape[0], gray.shape[1], 3), dtype=np.uint8)
-    
-    blurred = cv2.GaussianBlur(gray,(15,15),0)
 
-    green = cv2.convertScaleAbs(cv2.Laplacian(blurred,cv2.CV_32F,7))
-    blue = cv2.convertScaleAbs(cv2.Scharr(blurred,cv2.CV_32F,0,1))
-    
-    combined_image[:,:,0] = gray
-    combined_image[:,:,1] = np.clip(np.round(green+gray),0,255)
-    combined_image[:,:,2] = np.clip(np.round(blue*.5+gray*.5),0,255)
-   
-    
+    blurred = cv2.GaussianBlur(gray, (15, 15), 0)
+
+    green = cv2.convertScaleAbs(cv2.Laplacian(blurred, cv2.CV_32F, 7))
+    blue = cv2.convertScaleAbs(cv2.Scharr(blurred, cv2.CV_32F, 0, 1))
+
+    combined_image[:, :, 0] = gray
+    combined_image[:, :, 1] = np.clip(np.round(green + gray), 0, 255)
+    blend = 0.3
+    combined_image[:, :, 2] = np.clip(
+        np.round(blue * blend + gray * (1 - blend)), 0, 255
+    )
+
     return convert_from_cv2_to_image(combined_image)
+
 
 # Combines two images side by side for easier viewing
 def combine_images_side_by_side(image1, image2):
@@ -272,7 +275,7 @@ def new_offsets_file(offsets_file):
 
 
 # creates offsets.csv if it doesn't exist or if the user wants to overwrite it
-offsets_file = images_folder / "offsets.csv"
+offsets_file = pl.Path(__file__).parent / "offsets.csv"
 if not offsets_file.exists() or args.overwrite_offsets:
     new_offsets_file(offsets_file)
     print(f"Created offsets.csv in {images_folder}")

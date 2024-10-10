@@ -2,6 +2,7 @@ import pathlib as pl
 import argparse
 import pprint
 from PIL import Image
+import PIL
 import pathlib as pl
 import numpy as np
 import pandas as pd
@@ -69,28 +70,7 @@ def window_with_remainder(length, overlap, input_size):
 
 # does canny edge detection on an image
 def canny_image(image: Image):
-    return image
-    # Read the image
-
-    # Convert the image to grayscale
-    gray = cv2.cvtColor(convert_from_image_to_cv2(image), cv2.COLOR_BGR2GRAY)
-
-    combined_image = np.zeros((gray.shape[0], gray.shape[1], 3), dtype=np.uint8)
-
-    blurred = cv2.GaussianBlur(gray, (15, 15), 0)
-
-    green = cv2.convertScaleAbs(cv2.Laplacian(blurred, cv2.CV_32F, 7))
-    blue = cv2.convertScaleAbs(cv2.Scharr(blurred, cv2.CV_32F, 0, 1))
-
-    combined_image[:, :, 0] = gray
-    combined_image[:, :, 1] = np.clip(np.round(green + gray), 0, 255)
-    blend = 0
-    combined_image[:, :, 2] = np.clip(
-        np.round(blue * blend + gray * (1 - blend)), 0, 255
-    )
-
-    return convert_from_cv2_to_image(combined_image)
-
+    return PIL.ImageOps.autocontrast(PIL.ImageOps.equalize(image))
 
 # Combines two images side by side for easier viewing
 def combine_images_side_by_side(image1, image2):

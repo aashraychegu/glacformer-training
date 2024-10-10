@@ -69,6 +69,7 @@ def window_with_remainder(length, overlap, input_size):
 
 # does canny edge detection on an image
 def canny_image(image: Image):
+    return image
     # Read the image
 
     # Convert the image to grayscale
@@ -83,7 +84,7 @@ def canny_image(image: Image):
 
     combined_image[:, :, 0] = gray
     combined_image[:, :, 1] = np.clip(np.round(green + gray), 0, 255)
-    blend = 0.3
+    blend = 0
     combined_image[:, :, 2] = np.clip(
         np.round(blue * blend + gray * (1 - blend)), 0, 255
     )

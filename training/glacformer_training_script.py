@@ -107,10 +107,10 @@ if load_from == "new":
         num_labels=num_labels,
         label2id=label2id,
         id2label=id2label,
-        depths=[6, 4, 3, 2],
-        hidden_sizes=[64, 128, 384, 512],
-        num_attention_heads = [1,2,6,8],
-        decoder_hidden_size=128*7,
+        depths=[3, 4*2, 18, 3],
+        hidden_sizes=[64*2, 128*2, 384, 512],
+        num_attention_heads = [2,4,8,8],
+        decoder_hidden_size=128*6,
     )
     testmodel = SegformerForSemanticSegmentation(test_config)
 else:

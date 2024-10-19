@@ -126,9 +126,12 @@ else:
 
 transform = A.Compose(
     [
-        A.ElasticTransform(p=0.7),
-        A.GridDistortion(p=0.7),
-        A.Perspective(p=0.7),
+        A.ElasticTransform(p=0.8,alpha=.4,sigma = 40),
+        A.GridDistortion(p=0.8,distort_limit=(-.15,.15)),
+        A.GaussNoise(var_limit=(0,30),p=1),
+        A.RandomBrightnessContrast(p=1),
+        A.RandomGamma(p=1),
+        A.RandomToneCurve(p=1),
     ],
     additional_targets={"mask": "mask"},
 )

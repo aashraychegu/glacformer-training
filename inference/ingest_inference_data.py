@@ -6,6 +6,7 @@ from datasets import Image as DSImage
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+import PIL
 # files = list((pl.Path(__file__).parent / "inference_inputs").glob("*"))
 files = list((pl.Path(".").parent / "inference_inputs").glob("*"))
 print(files)

@@ -50,7 +50,7 @@ parser.add_argument(
     "--learning_rate",
     type=float,
     help="The initial learning rate for Adam",
-    default=12e-5,
+    default=18e-5,
 )
 parser.add_argument(
     "--num_epochs",
@@ -108,9 +108,9 @@ if load_from == "new":
         label2id=label2id,
         id2label=id2label,
         depths=[3, 4*2, 18, 3],
-        hidden_sizes=[64*2, 128*2, 384, 512],
+        hidden_sizes=[64*2, 128*2, 384, 768],
         num_attention_heads = [2,4,8,8],
-        decoder_hidden_size=128*6,
+        decoder_hidden_size=128*8,
     )
     testmodel = SegformerForSemanticSegmentation(test_config)
 else:
@@ -126,12 +126,10 @@ else:
 
 transform = A.Compose(
     [
-        A.ElasticTransform(p=0.8,alpha=.4,sigma = 40),
-        A.GridDistortion(p=0.8,distort_limit=(-.15,.15)),
-        A.GaussNoise(var_limit=(0,30),p=1),
-        A.RandomBrightnessContrast(p=1),
-        A.RandomGamma(p=1),
-        A.RandomToneCurve(p=1),
+        A.ElasticTransform(p=0.5,alpha=.4,sigma = 40),
+        A.GridDistortion(p=0.5,distort_limit=(-.15,.15)),
+        A.RandomBrightnessContrast(p=.6),
+        A.RandomToneCurve(p=.8),
     ],
     additional_targets={"mask": "mask"},
 )

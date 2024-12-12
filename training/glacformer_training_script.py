@@ -9,7 +9,6 @@ import evaluate
 import huggingface_hub
 import albumentations as A
 from datasets import load_dataset
-import datasets
 from transformers import TrainingArguments, Trainer
 from transformers import (
     SegformerImageProcessor,
@@ -20,14 +19,23 @@ import pathlib as pl
 import datetime
 import os
 import accelerate
-os.environ["WANDB_PROJECT"]="glacformer_training"
-os.environ["NCCL_CUMEM_ENABLE"]="0"
-os.environ["NCCL_DEBUG"] = "INFO"
 
-# Get the path of the parent directory for this file
+os.environ["WANDB_PROJECT"] = "glacformer_training"
+os.environ["NCCL_CUMEM_ENABLE"] = "0"
+os.environ["NCCL_DEBUG"] = "INFO"
+torch.backends.cuda.matmul.allow_tf32 = True
 parent_dir = pathlib.Path(__file__).resolve().parent
 
+
 parser = argparse.ArgumentParser()
+
+parser.add_argument(
+    "--continue-training",
+    type=bool,
+    help="continues training from the data in the checkpoint folder",
+    default=parent_dir.parent / "checkpoint",
+)
+
 parser.add_argument(
     "--load_from",
     type=str,
@@ -41,12 +49,6 @@ parser.add_argument(
     default="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",
 )
 parser.add_argument(
-    "--save_to",
-    type=str,
-    help="where to save the model to once training is over",
-    default="@source",
-)
-parser.add_argument(
     "--learning_rate",
     type=float,
     help="The initial learning rate for Adam",
@@ -58,36 +60,29 @@ parser.add_argument(
     help="Total number of training epochs to perform",
     default=1,
 )
+
 args = parser.parse_args()
-load_from = args.load_from
 token = args.token
-save_to = args.save_to
 learning_rate = args.learning_rate
 num_epochs = args.num_epochs
 
+if args.continue_training:
+    load_from = parent_dir.parent / "checkpoint" / "model"
+    data_location = parent_dir.parent / "checkpoint" / "data"
+else:
+    load_from = args.load_from
+    data_location = pl.Path(__file__).parent / "data"
 
-torch.backends.cuda.matmul.allow_tf32 = True
 
-
+data_path = "glacierscopessegmentation/scopes"
 hf_model_name = "glacierscopessegmentation/glacier_segmentation_transformer"
-huggingface_hub.login(token=token,add_to_git_credential=True)
-data_location = pl.Path(__file__).parent / "data"
+huggingface_hub.login(token=token, add_to_git_credential=True)
+ds = load_dataset(data_path, keep_in_memory=True, cache_dir=data_location)
 
-ds = load_dataset(
-    "glacierscopessegmentation/scopes",
-    keep_in_memory=True,
-    cache_dir = data_location
-)
-# data_location.mkdir(parents=True, exist_ok=True)
-# print(data_location)
-# ds.save_to_disk(data_location)
-# del ds
-# ds = datasets.load_from_disk(data_location)
-# input()
 train_ds = ds["train"]
 test_ds = ds["test"]
 ds.cleanup_cache_files()
-del ds
+
 id2label = {
     "0": "sky",  # This is given by the rgb value of 00 00 00 for the mask
     "1": "surface-to-bed",  # This is given by the rgb value of 01 01 01 for the mask
@@ -107,10 +102,10 @@ if load_from == "new":
         num_labels=num_labels,
         label2id=label2id,
         id2label=id2label,
-        depths=[3, 4*2, 18, 3],
-        hidden_sizes=[64*2, 128*2, 384, 768],
-        num_attention_heads = [2,4,8,8],
-        decoder_hidden_size=128*8,
+        depths=[3, 4 * 2, 18, 3],
+        hidden_sizes=[64 * 2, 128 * 2, 384, 768],
+        num_attention_heads=[2, 4, 8, 8],
+        decoder_hidden_size=128 * 8,
     )
     testmodel = SegformerForSemanticSegmentation(test_config)
 else:
@@ -121,20 +116,15 @@ else:
         local_files_only=True,
     )
 
-# Load the image processor for the test model from the pre-trained checkpoint
-
-
 transform = A.Compose(
     [
-        A.ElasticTransform(p=0.5,alpha=.4,sigma = 40),
-        A.GridDistortion(p=0.5,distort_limit=(-.15,.15)),
-        A.RandomBrightnessContrast(p=.6),
-        A.RandomToneCurve(p=.8),
+        A.ElasticTransform(p=0.5, alpha=0.4, sigma=40),
+        A.GridDistortion(p=0.5, distort_limit=(-0.15, 0.15)),
+        A.RandomBrightnessContrast(p=0.6),
+        A.RandomToneCurve(p=0.8),
     ],
     additional_targets={"mask": "mask"},
 )
-
-# creates transforms for data augumentation, and using albumentations allows me apply the same transform to the image and the mask at the same time
 
 
 # Define a function to apply transformations to a batch of training examples
@@ -157,6 +147,7 @@ def val_transforms(example_batch):
     labels = [x for x in example_batch["label"]]
     inputs = test_image_processor(images, labels)
     return inputs
+
 
 # this makes the transforms happen when a batch is loaded
 train_ds.set_transform(train_transforms)
@@ -207,8 +198,9 @@ def compute_metrics(eval_pred):
 # Define the training arguments
 run_name = datetime.datetime.now().strftime("SherlockCluster--%Y-%m-%d--%H-%M-%S-%Z")
 training_args = TrainingArguments(
-    output_dir="glacformer/"+run_name,  # The output directory for the model predictions and checkpoints
-    overwrite_output_dir = True,
+    output_dir="glacformer/"
+    + run_name,  # The output directory for the model predictions and checkpoints
+    overwrite_output_dir=True,
     learning_rate=learning_rate,  # The initial learning rate for Adam
     num_train_epochs=num_epochs,  # Total number of training epochs to perform
     auto_find_batch_size=True,  # Whether to automatically find an appropriate batch size
@@ -216,17 +208,17 @@ training_args = TrainingArguments(
     # eval_accumulation_steps=1,  # Number of steps to accumulate gradients before performing a backward/update pass
     eval_strategy="epoch",  # The evaluation strategy to adopt during training
     save_strategy="epoch",  # The checkpoint save strategy to adopt during training
-    save_steps=1,  # Number of update steps before two checkpoint saves
+    save_steps=100,  # Number of update steps before two checkpoint saves
     eval_steps=1,  # Number of update steps before two evaluations
-    logging_steps=100,  # Number of update steps before logging learning rate and other metrics
+    logging_steps=1000,  # Number of update steps before logging learning rate and other metrics
     remove_unused_columns=False,  # Whether to remove columns not used by the model when using a dataset
     fp16=True,  # Whether to use 16-bit float precision instead of 32-bit for saving memory
     tf32=True,  # Whether to use tf32 precision instead of 32-bit for saving memory
     # gradient_accumulation_steps=4,  # Number of updates steps to accumulate before performing a backward/update pass for saving memory
     hub_model_id=hf_model_name,  # The model ID on the Hugging Face model hub
-    report_to = "wandb",
-    run_name = run_name,
-    per_device_train_batch_size = 100,
+    report_to="wandb",
+    run_name=run_name,
+    per_device_train_batch_size=100,
 )
 
 # Define the trainer
@@ -238,7 +230,8 @@ trainer = Trainer(
     compute_metrics=compute_metrics,
 )
 trainer.train()
-trainer.push_to_hub(token = token)
+trainer.push_to_hub(token=token)
 
-trainer.model.save_pretrained("glacformer/"+run_name+"/final/")
-test_image_processor.save_pretrained("inference/sip/")
+
+trainer.save_model(parent_dir.parent / "checkpoint" / "model")
+ds.save_to_disk(parent_dir.parent / "checkpoint" / "model" / "data")

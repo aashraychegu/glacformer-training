@@ -19,6 +19,7 @@ import pathlib as pl
 import datetime
 import os
 import accelerate
+import shutil
 
 os.environ["WANDB_PROJECT"] = "glacformer_training"
 os.environ["NCCL_CUMEM_ENABLE"] = "0"
@@ -60,6 +61,11 @@ parser.add_argument(
     help="Total number of training epochs to perform",
     default=1,
 )
+parser.add_argument(
+    "--rm_checkpoint",
+    action="store_true",
+    help="If set, removes the checkpoint directory before starting training",
+)
 
 args = parser.parse_args()
 token = args.token
@@ -69,6 +75,12 @@ num_epochs = args.num_epochs
 checkpoint_model_path = parent_dir.parent / "checkpoint" / "model"
 checkpoint_data_path = parent_dir.parent / "checkpoint" / "data"
 
+
+if args.rm_checkpoint:
+    shutil.rmtree(checkpoint_model_path)
+    shutil.rmtree(checkpoint_data_path)
+
+
 is_checkpoint_empty = not any(checkpoint_model_path.iterdir()) or not any(
     checkpoint_data_path.iterdir()
 )
@@ -76,9 +88,11 @@ is_checkpoint_empty = not any(checkpoint_model_path.iterdir()) or not any(
 if args.continue_training and not is_checkpoint_empty:
     load_from = checkpoint_model_path
     data_location = checkpoint_model_path
+    print("Continuing training from checkpoint")
 else:
     load_from = args.load_from
     data_location = pl.Path(__file__).parent / "data"
+    print("Starting new training")
 
 
 data_path = "glacierscopessegmentation/scopes"

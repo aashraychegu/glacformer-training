@@ -66,9 +66,16 @@ token = args.token
 learning_rate = args.learning_rate
 num_epochs = args.num_epochs
 
-if args.continue_training:
-    load_from = parent_dir.parent / "checkpoint" / "model"
-    data_location = parent_dir.parent / "checkpoint" / "data"
+checkpoint_model_path = parent_dir.parent / "checkpoint" / "model"
+checkpoint_data_path = parent_dir.parent / "checkpoint" / "data"
+
+is_checkpoint_empty = not any(checkpoint_model_path.iterdir()) or not any(
+    checkpoint_data_path.iterdir()
+)
+
+if args.continue_training and not is_checkpoint_empty:
+    load_from = checkpoint_model_path
+    data_location = checkpoint_model_path
 else:
     load_from = args.load_from
     data_location = pl.Path(__file__).parent / "data"

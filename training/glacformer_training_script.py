@@ -81,7 +81,7 @@ if args.rm_checkpoint:
     shutil.rmtree(checkpoint_data_path)
 
 
-is_checkpoint_empty = not any(checkpoint_model_path.iterdir()) or not any(
+is_checkpoint_empty = not any(checkpoint_model_path.iterdir()) and not any(
     checkpoint_data_path.iterdir()
 )
 
@@ -90,10 +90,9 @@ if args.continue_training and not is_checkpoint_empty:
     data_location = checkpoint_model_path
     print("Continuing training from checkpoint")
 else:
-    load_from = args.load_from
+    load_from = "new"
     data_location = pl.Path(__file__).parent / "data"
     print("Starting new training")
-
 
 data_path = "glacierscopessegmentation/scopes"
 hf_model_name = "glacierscopessegmentation/glacier_segmentation_transformer"
@@ -123,7 +122,7 @@ if load_from == "new":
         num_labels=num_labels,
         label2id=label2id,
         id2label=id2label,
-        depths=[3, 4 * 2, 18, 3],
+        depths=[6, 4 * 2, 18, 3],
         hidden_sizes=[64 * 2, 128 * 2, 384, 768],
         num_attention_heads=[2, 4, 8, 8],
         decoder_hidden_size=128 * 8,
@@ -139,9 +138,9 @@ else:
 
 transform = A.Compose(
     [
-        A.ElasticTransform(p=0.5, alpha=0.4, sigma=40),
-        A.GridDistortion(p=0.5, distort_limit=(-0.15, 0.15)),
-        A.RandomBrightnessContrast(p=0.6),
+        A.ElasticTransform(p=0.5, alpha=1, sigma=25),
+        A.GridDistortion(p=0.5, distort_limit=.3),
+        A.RandomBrightnessContrast(p=0.8),
         A.RandomToneCurve(p=0.8),
     ],
     additional_targets={"mask": "mask"},
@@ -171,8 +170,8 @@ def val_transforms(example_batch):
 
 
 # this makes the transforms happen when a batch is loaded
-train_ds.set_transform(train_transforms)
-test_ds.set_transform(val_transforms)
+train_ds = train_ds.with_transform(train_transforms)
+test_ds = test_ds.with_transform(val_transforms)
 
 
 # Load the "mean_iou" metric for evaluating semantic segmentation models
@@ -255,4 +254,4 @@ trainer.push_to_hub(token=token)
 
 
 trainer.save_model(parent_dir.parent / "checkpoint" / "model")
-ds.save_to_disk(parent_dir.parent / "checkpoint" / "model" / "data")
+ds.save_to_disk(parent_dir.parent / "checkpoint" / "data")

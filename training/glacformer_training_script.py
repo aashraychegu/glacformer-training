@@ -116,16 +116,16 @@ train_ds.cleanup_cache_files()
 test_ds.cleanup_cache_files()
 test_image_processor = SegformerImageProcessor.from_pretrained("nvidia/MiT-b0")
 
-if load_from == "new":
+if load_from == "new" or load_from == "checkpoint":
     test_config = SegformerConfig(
         num_channels=3,
         num_labels=num_labels,
         label2id=label2id,
         id2label=id2label,
-        depths=[6, 4 * 2, 18, 3],
-        hidden_sizes=[64 * 2, 128 * 2, 384, 768],
-        num_attention_heads=[2, 4, 8, 8],
-        decoder_hidden_size=128 * 8,
+        depths=[3, 4, 6, 3],
+        hidden_sizes=[64, 128, 320, 512],
+        num_attention_heads=[1, 2, 5, 8],
+        decoder_hidden_size=128 * 6,
     )
     testmodel = SegformerForSemanticSegmentation(test_config)
 else:
@@ -146,7 +146,6 @@ transform = A.Compose(
     additional_targets={"mask": "mask"},
 )
 
-
 # Define a function to apply transformations to a batch of training examples
 def train_transforms(example_batch):
     imagesandmasks = [
@@ -159,7 +158,6 @@ def train_transforms(example_batch):
     inputs = test_image_processor(images, masks)
     return inputs
 
-
 # Define a function to apply transformations to a batch of validation examples
 def val_transforms(example_batch):
     # Convert each image in the batch to RGB
@@ -168,15 +166,12 @@ def val_transforms(example_batch):
     inputs = test_image_processor(images, labels)
     return inputs
 
-
 # this makes the transforms happen when a batch is loaded
 train_ds = train_ds.with_transform(train_transforms)
 test_ds = test_ds.with_transform(val_transforms)
 
-
 # Load the "mean_iou" metric for evaluating semantic segmentation models
 metric = evaluate.load("mean_iou")
-
 
 # Define a function to compute metrics for evaluation predictions
 # Here, the metric is mean intersection over union
@@ -214,7 +209,6 @@ def compute_metrics(eval_pred):
         # Return the computed metrics
         return metrics
 
-
 # Define the training arguments
 run_name = datetime.datetime.now().strftime("SherlockCluster--%Y-%m-%d--%H-%M-%S-%Z")
 training_args = TrainingArguments(
@@ -238,7 +232,7 @@ training_args = TrainingArguments(
     hub_model_id=hf_model_name,  # The model ID on the Hugging Face model hub
     report_to="wandb",
     run_name=run_name,
-    per_device_train_batch_size=100,
+    per_device_train_batch_size=100,  
 )
 
 # Define the trainer
@@ -249,9 +243,11 @@ trainer = Trainer(
     eval_dataset=test_ds,
     compute_metrics=compute_metrics,
 )
-trainer.train()
+if load_from == "checkpoint": trainer.train(resume_from_checkpoint=True)
+else: trainer.train()
+
 trainer.push_to_hub(token=token)
 
-
-trainer.save_model(parent_dir.parent / "checkpoint" / "model")
+if load_from != "checkpoint":
+    trainer.save_model(parent_dir.parent / "checkpoint" / "model")
 ds.save_to_disk(parent_dir.parent / "checkpoint" / "data")

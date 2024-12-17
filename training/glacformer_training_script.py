@@ -31,18 +31,19 @@ parent_dir = pathlib.Path(__file__).resolve().parent
 parser = argparse.ArgumentParser()
 
 parser.add_argument(
-    "--continue-training",
+    "--continue_training",
     type=bool,
-    help="continues training from the data in the checkpoint folder",
-    default=parent_dir.parent / "checkpoint",
+    help="continues training from the last checkpoint",
+    default=False,
 )
 
 parser.add_argument(
     "--load_from",
     type=str,
-    help="Path to load the pre-trained model from",
-    default=parent_dir.parent / "glacformer",
+    help="load a new model or from a checkpoint or a path. if 'new' or a path, set continue_training to false",
+    default="new",
 )
+
 parser.add_argument(
     "--token",
     type=str,
@@ -61,47 +62,28 @@ parser.add_argument(
     help="Total number of training epochs to perform",
     default=1,
 )
-parser.add_argument(
-    "--rm_checkpoint",
-    action="store_true",
-    help="If set, removes the checkpoint directory before starting training",
-)
 
 args = parser.parse_args()
 token = args.token
 learning_rate = args.learning_rate
 num_epochs = args.num_epochs
+load_from = args.load_from
 
-checkpoint_model_path = parent_dir.parent / "checkpoint" / "model"
-checkpoint_data_path = parent_dir.parent / "checkpoint" / "data"
-
-
-if args.rm_checkpoint:
-    shutil.rmtree(checkpoint_model_path)
-    shutil.rmtree(checkpoint_data_path)
-
-
-is_checkpoint_empty = not any(checkpoint_model_path.iterdir()) and not any(
-    checkpoint_data_path.iterdir()
-)
-
-if args.continue_training and not is_checkpoint_empty:
-    load_from = checkpoint_model_path
-    data_location = checkpoint_model_path
+print(args.continue_training)
+if args.continue_training == "True":
+    load_from = "checkpoint"
     print("Continuing training from checkpoint")
 else:
-    load_from = "new"
-    data_location = pl.Path(__file__).parent / "data"
     print("Starting new training")
-
-data_path = "glacierscopessegmentation/scopes"
+    
 hf_model_name = "glacierscopessegmentation/glacier_segmentation_transformer"
 huggingface_hub.login(token=token, add_to_git_credential=True)
-ds = load_dataset(data_path, keep_in_memory=True, cache_dir=data_location)
 
+ds = load_dataset("glacierscopessegmentation/scopes", keep_in_memory=True, cache_dir=pl.Path(__file__).parent / "data")
 train_ds = ds["train"]
 test_ds = ds["test"]
 ds.cleanup_cache_files()
+del ds
 
 id2label = {
     "0": "sky",  # This is given by the rgb value of 00 00 00 for the mask
@@ -210,11 +192,13 @@ def compute_metrics(eval_pred):
         return metrics
 
 # Define the training arguments
-run_name = datetime.datetime.now().strftime("SherlockCluster--%Y-%m-%d--%H-%M-%S-%Z")
+if load_from == "checkpoint":
+    run_name = sorted(list((parent_dir.parent / "glacformer").glob("*")))[-1].name
+else: run_name = datetime.datetime.now().strftime("SherlockCluster--%Y-%m-%d--%H-%M-%S-%Z")
+
 training_args = TrainingArguments(
-    output_dir="glacformer/"
-    + run_name,  # The output directory for the model predictions and checkpoints
-    overwrite_output_dir=True,
+    output_dir = "glacformer/" + run_name,
+    # overwrite_output_dir=True,
     learning_rate=learning_rate,  # The initial learning rate for Adam
     num_train_epochs=num_epochs,  # Total number of training epochs to perform
     auto_find_batch_size=True,  # Whether to automatically find an appropriate batch size
@@ -224,7 +208,7 @@ training_args = TrainingArguments(
     save_strategy="epoch",  # The checkpoint save strategy to adopt during training
     save_steps=100,  # Number of update steps before two checkpoint saves
     eval_steps=1,  # Number of update steps before two evaluations
-    logging_steps=1000,  # Number of update steps before logging learning rate and other metrics
+    logging_steps=.5,  # Number of update steps before logging learning rate and other metrics
     remove_unused_columns=False,  # Whether to remove columns not used by the model when using a dataset
     fp16=True,  # Whether to use 16-bit float precision instead of 32-bit for saving memory
     tf32=True,  # Whether to use tf32 precision instead of 32-bit for saving memory
@@ -233,6 +217,8 @@ training_args = TrainingArguments(
     report_to="wandb",
     run_name=run_name,
     per_device_train_batch_size=100,  
+    ignore_data_skip=True,
+    push_to_hub=True
 )
 
 # Define the trainer
@@ -243,11 +229,7 @@ trainer = Trainer(
     eval_dataset=test_ds,
     compute_metrics=compute_metrics,
 )
+
 if load_from == "checkpoint": trainer.train(resume_from_checkpoint=True)
 else: trainer.train()
 
-trainer.push_to_hub(token=token)
-
-if load_from != "checkpoint":
-    trainer.save_model(parent_dir.parent / "checkpoint" / "model")
-ds.save_to_disk(parent_dir.parent / "checkpoint" / "data")

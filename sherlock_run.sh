@@ -8,4 +8,4 @@ clear
 nvidia-smi
 echo "Started Training"
 git config --global credential.helper store
-python3 /home/groups/dustinms/aashrayc/glacformer-training/training/glacformer_training_script.py --continue-training $1 --num_epochs $2
+python3 /home/groups/dustinms/aashrayc/glacformer-training/training/glacformer_training_script.py --continue_training $1 --num_epochs $2

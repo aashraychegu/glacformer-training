@@ -12,3 +12,5 @@ wandb
 inference/inference_inputs/*
 inference/inference_raw_imgs/*/*.png
 inference_dataset/*
+training/eval_cache
+*.lock

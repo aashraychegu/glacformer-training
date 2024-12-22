@@ -1,6 +1,5 @@
 # Create the argument parser
-from torch.distributed.elastic.multiprocessing.errors import record
-@record
+
 def main():
     import argparse
     import pathlib
@@ -156,22 +155,23 @@ def main():
     test_ds = test_ds.with_transform(val_transforms)
 
     # Load the "mean_iou" metric for evaluating semantic segmentation models
-    metric = evaluate.load("mean_iou",cache_dir="./eval_cache")
+    metric = evaluate.load("mean_iou",cache_dir=pl.Path(__file__).parent / "eval_cache")
 
     # Define a function to compute metrics for evaluation predictions
     # Here, the metric is mean intersection over union
-    
-    @record
-    def compute_metrics(eval_pred):
+    # from memory_profiler import profile 
+    # @profile
+    def compute_metrics(eval_pred, compute_result=True):
         with torch.no_grad():
             logits, labels = eval_pred
-            labels = labels
-            print("\n\n\t \t \t \t \tPre Interpolation\n\n")
-            # Interpolate logits to match the size of labels
-            pred_labels = F.interpolate(torch.from_numpy(logits).cpu().argmax(dim=1).unsqueeze(1).float(), size=labels.shape[-2:], mode="bilinear", align_corners=False).squeeze(1).cpu()
-            print("\n\n\t \t \t \t \tPost Interpolation\n\n")
-            print(pred_labels.shape,labels.shape)
-            # Compute metrics
+            pred_labels = F.interpolate(
+                logits.cpu().argmax(dim=1).unsqueeze(1).float(),
+                size=labels.shape[-2:], mode="bilinear", align_corners=False
+            ).squeeze(1).cpu()
+            
+            if not compute_result:
+                return {"predictions": pred_labels, "labels": labels}
+            
             metrics = metric.compute(
                 predictions=pred_labels,
                 references=labels,
@@ -179,18 +179,15 @@ def main():
                 reduce_labels=False,
                 ignore_index=255,
             )
-            print("\n\n\t \t \t \t \tPost Computation\n\n")
-
-            # Convert numpy arrays to lists
-            metrics = {key: value.tolist() if isinstance(value, np.ndarray) else value for key, value in metrics.items()}
-            m2 = dict()
-            for key in metrics:
-                if isinstance(metrics[key],list):
-                    for c,v in enumerate(metrics[key]):
+            
+            m2 = {}
+            for key, value in metrics.items():
+                if isinstance(value, np.ndarray):
+                    for c, v in enumerate(list(value)):
                         m2[key + "_" + id2label[c]] = v
-                    else:
-                        m2[key] = v
-            print("\n\n\t \t \t \t \tFinished reformatting Metrics\n\n")
+                else:
+                    m2[key] = value
+            
             del metrics
             return m2
 
@@ -210,7 +207,7 @@ def main():
         eval_strategy="epoch",  # The evaluation strategy to adopt during training
         save_strategy="epoch",  # The checkpoint save strategy to adopt during training
         save_steps=100,  # Number of update steps before two checkpoint saves
-        eval_steps=1,  # Number of update steps before two evaluations
+        eval_steps=3,  # Number of update steps before two evaluations
         logging_steps=.5,  # Number of update steps before logging learning rate and other metrics
         remove_unused_columns=False,  # Whether to remove columns not used by the model when using a dataset
         fp16=True,  # Whether to use 16-bit float precision instead of 32-bit for saving memory
@@ -219,13 +216,16 @@ def main():
         hub_model_id=hf_model_name,  # The model ID on the Hugging Face model hub
         report_to="wandb",
         run_name=run_name,
-        per_device_train_batch_size=116, 
-        per_device_eval_batch_size = 1, 
+        per_device_train_batch_size=116,
         ignore_data_skip=True,
         push_to_hub=True,
         ddp_find_unused_parameters=False,
-        # deepspeed=./config.json
+        batch_eval_metrics=True,
+        hub_strategy="end",
+        # torch_compile=True,
+        # - Try this during winter quarter - # deepspeed=./config.json
     )
+
 
     # Define the trainer
     trainer = Trainer(

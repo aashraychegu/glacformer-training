@@ -4,10 +4,12 @@ gradio
 datasets
 transformers[torch]
 pillow
+-i https://download.pytorch.org/whl/cu124
 torch
-numpy
-torchvision
+-i https://download.pytorch.org/whl/cu124
 torchaudio
+-i https://download.pytorch.org/whl/cu124
+torchvision
 opencv-python
 evaluate
 huggingface

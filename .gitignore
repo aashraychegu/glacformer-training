@@ -14,3 +14,4 @@ inference/inference_raw_imgs/*/*.png
 inference_dataset/*
 training/eval_cache
 *.lock
+remora*

@@ -23,8 +23,8 @@ def main():
     import accelerate
     import shutil
     import torch.nn.functional as F
-    os.environ["WANDB_PROJECT"] = "glacformer_training"
-    os.environ["NCCL_CUMEM_ENABLE"] = "0"
+    os.environ["WANDB_PROJECT"] = "glacformer_training" 
+    #os.environ["NCCL_CUMEM_ENABLE"] = "0"
     os.environ["NCCL_DEBUG"] = "INFO"
     torch.backends.cuda.matmul.allow_tf32 = True
     parent_dir = pathlib.Path(__file__).resolve().parent
@@ -50,7 +50,7 @@ def main():
         "--token",
         type=str,
         help="The throwaway auth token",
-        default="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",
+        default="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",
     )
     parser.add_argument(
         "--learning_rate",
@@ -78,7 +78,8 @@ def main():
         print("Starting new training")
         
     hf_model_name = "glacierscopessegmentation/glacier_segmentation_transformer"
-    huggingface_hub.login(token=token, add_to_git_credential=True)
+    # huggingface_hub.login(token=token,add_to_git_credential=True)
+    print(huggingface_hub.auth_list())
 
     ds = load_dataset("glacierscopessegmentation/scopes", keep_in_memory=True, cache_dir=pl.Path(__file__).parent / "data")
     train_ds = ds["train"]
@@ -122,10 +123,10 @@ def main():
 
     transform = A.Compose(
         [
-            A.ElasticTransform(p=0.5, alpha=1, sigma=25),
-            A.GridDistortion(p=0.5, distort_limit=.3),
-            A.RandomBrightnessContrast(p=0.8),
-            A.RandomToneCurve(p=0.8),
+            A.GridDistortion(p=0.75, distort_limit=1, num_steps=10),
+            A.RandomBrightnessContrast(p=0.8,brightness_limit=.5,contrast_limit=.5,ensure_safe_range=True),
+            A.RandomToneCurve(p=0.8,scale=.8),
+            A.RandomResizedCrop(p=.8,size=[512,512],scale=[.4,1],ratio=[0.05,100])
         ],
         additional_targets={"mask": "mask"},
     )
@@ -198,21 +199,16 @@ def main():
 
     training_args = TrainingArguments(
         output_dir = "glacformer/" + run_name,
-        # overwrite_output_dir=True,
-        learning_rate=learning_rate,  # The initial learning rate for Adam
         num_train_epochs=num_epochs,  # Total number of training epochs to perform
         auto_find_batch_size=True,  # Whether to automatically find an appropriate batch size
         save_total_limit=3,  # Limit the total amount of checkpoints and delete the older checkpoints
-        # eval_accumulation_steps=1,  # Number of steps to accumulate gradients before performing a backward/update pass
         eval_strategy="epoch",  # The evaluation strategy to adopt during training
         save_strategy="epoch",  # The checkpoint save strategy to adopt during training
         save_steps=100,  # Number of update steps before two checkpoint saves
         eval_steps=3,  # Number of update steps before two evaluations
-        logging_steps=.5,  # Number of update steps before logging learning rate and other metrics
         remove_unused_columns=False,  # Whether to remove columns not used by the model when using a dataset
         fp16=True,  # Whether to use 16-bit float precision instead of 32-bit for saving memory
         tf32=True,  # Whether to use tf32 precision instead of 32-bit for saving memory
-        # gradient_accumulation_steps=4,  # Number of updates steps to accumulate before performing a backward/update pass for saving memory
         hub_model_id=hf_model_name,  # The model ID on the Hugging Face model hub
         report_to="wandb",
         run_name=run_name,
@@ -222,7 +218,10 @@ def main():
         ddp_find_unused_parameters=False,
         batch_eval_metrics=True,
         hub_strategy="end",
-        # torch_compile=True,
+        optim = "adamw_torch_fused",
+        learning_rate=learning_rate,  # The initial learning rate for Adam
+        lr_scheduler_type = "cosine_with_restarts",
+        # - Try this during winter quarter - torch_compile=True,
         # - Try this during winter quarter - # deepspeed=./config.json
     )
 

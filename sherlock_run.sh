@@ -16,8 +16,7 @@ echo "Installed all required packages"
 nvidia-smi
 echo "Started Training"
 git config --global credential.helper store
-export NCCL_DEBUG=INFO
-export NCCL_P2P_LEVEL=NVL
+
 export script="/home/groups/dustinms/aashrayc/glacformer-training/training/glacformer_training_script.py"
 module list
 
@@ -55,14 +54,23 @@ else
     export WANDB_MODE=disabled
 
 fi
+export HF_TOKEN="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"
+huggingface-cli whoami
+huggingface-cli env
+#huggingface-cli login --token $HF_TOKEN  --add-to-git-credential
 
+export TORCH_DISTRIBUTED_DEBUG=DETAIL
+export NCCL_DEBUG=INFO
+export NCCL_P2P_LEVEL=NVL
+export TORCH_DISTRIBUTED_DEBUG=DETAIL
 
 if [ "$TESTING" = "False" ]; then
-    torchrun --nnodes=$NUM_NODES --nproc-per-node=gpu --rdzv_id=GLACFORMER_TRAINING-$MASTER_ADDR-$MASTER_PORT --rdzv_backend=c10d --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT $script --continue_training $CONTINUE_TRAINING --num_epochs=$NUM_EPOCHS
+    torchrun --nnodes=$NUM_NODES --nproc-per-node=gpu --rdzv_id=GLACFORMER_TRAINING-$MASTER_ADDR-$MASTER_PORT --rdzv_backend=c10d --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT $script --continue_training $CONTINUE_TRAINING --num_epochs=$NUM_EPOCHS --token $HF_TOKEN
 else
     echo "STANDALONE TRAINING"
+    ml ruse
     export WANDB_MODE=disabled
-    torchrun --nnodes=1 --nproc-per-node=gpu --standalone $script --continue_training $CONTINUE_TRAINING --num_epochs=$NUM_EPOCHS
+    ruse torchrun --nnodes=1 --nproc-per-node=gpu --standalone $script --continue_training $CONTINUE_TRAINING --num_epochs=$NUM_EPOCHS --token $HF_TOKEN
     CLEANUP="True"
 fi
 

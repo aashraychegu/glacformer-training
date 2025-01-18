@@ -64,6 +64,13 @@ def main():
         help="Total number of training epochs to perform",
         default=1,
     )
+    
+    parser.add_argument(
+        "--jobname",
+        type=str,
+        help="name of the job",
+        default="ERROR: JOBNAME NOT SET",
+    )
 
     args = parser.parse_args()
     token = args.token
@@ -109,7 +116,6 @@ def main():
             id2label=id2label,
             depths=[3, 4, 6, 3],
             hidden_sizes=[64, 128, 320, 512],
-            num_attention_heads=[1, 2, 5, 8],
             decoder_hidden_size=128 * 6,
         )
         testmodel = SegformerForSemanticSegmentation(test_config)
@@ -195,7 +201,7 @@ def main():
     # Define the training arguments
     if load_from == "checkpoint":
         run_name = sorted(list((parent_dir.parent / "glacformer").glob("*")))[-1].name
-    else: run_name = datetime.datetime.now().strftime("SherlockCluster--%Y-%m-%d--%H-%M-%S-%Z")
+    else: run_name = args.jobname
 
     training_args = TrainingArguments(
         output_dir = "glacformer/" + run_name,
@@ -218,23 +224,34 @@ def main():
         ddp_find_unused_parameters=False,
         batch_eval_metrics=True,
         hub_strategy="end",
+        logging_first_step = True,
         optim = "adamw_torch_fused",
         learning_rate=learning_rate,  # The initial learning rate for Adam
         lr_scheduler_type = "cosine_with_restarts",
+        lr_scheduler_kwargs = {"num_cycles":6},
+        
+        # logging_strategy = "steps",
+        # logging_steps = 1,
+        logging_strategy = "epoch",
+
+
         # - Try this during winter quarter - torch_compile=True,
         # - Try this during winter quarter - # deepspeed=./config.json
     )
 
 
     # Define the trainer
+    # optim = torch.optim.AdamW({'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-08, 'fused': True})
+    # lr_sched = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optim,)
     trainer = Trainer(
         model=testmodel,
         args=training_args,
         train_dataset=train_ds,
         eval_dataset=test_ds,
         compute_metrics=compute_metrics,
+        # optimizers=(optim,lr_sched)
     )
-
+    print(trainer.get_optimizer_cls_and_kwargs(training_args))
     if load_from == "checkpoint": trainer.train(resume_from_checkpoint=True)
     else: trainer.train()
 

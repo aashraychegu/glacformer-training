@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Kill all existing tmux sessions
+
 printf "\n\nStarted sherlock_run.sh\n\n"
 ps aux | grep python
 clear
@@ -30,6 +30,7 @@ WANDB_ACTIVE="False"
 SESSION_NAME="GLACFORMER_TRAINING_SESSION_AASHRAYC"
 TESTING="True"
 CLEANUP="False"
+JOBNAME="$SLURM_JOB_NAME-$SLURM_JOBID[$MASTER_NODE($SLURMD_NODENAME)-$SLURM_NODELIST]{QTIME:($(squeue -j $SLURM_JOB_ID -o "%V" -h))|STIME:($(date -d @$SLURM_JOB_START_TIME))|CTIME($(date))}@(Stanford Sherlock Cluster)"
 
 # Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
@@ -42,22 +43,23 @@ while [[ "$#" -gt 0 ]]; do
         --wandb-active) WANDB_ACTIVE="$2"; shift ;;
         --cleanup) CLEANUP="$2"; shift ;;
         --testing) TESTING="$2"; shift ;;
+        --jobname) JOBNAME="$2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
 done
+
 if [ "$WANDB_ACTIVE" = "True" ]; then
     echo "USING WANDB"
     export WANDB_API_KEY=8a2ce1929f5f1d40c72093dc901f3cfe3e945b2e
 else
     echo "WANDB DISABLED"
     export WANDB_MODE=disabled
-
 fi
+
 export HF_TOKEN="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"
 huggingface-cli whoami
 huggingface-cli env
-#huggingface-cli login --token $HF_TOKEN  --add-to-git-credential
 
 export TORCH_DISTRIBUTED_DEBUG=DETAIL
 export NCCL_DEBUG=INFO
@@ -65,13 +67,13 @@ export NCCL_P2P_LEVEL=NVL
 export TORCH_DISTRIBUTED_DEBUG=DETAIL
 
 if [ "$TESTING" = "False" ]; then
-    torchrun --nnodes=$NUM_NODES --nproc-per-node=gpu --rdzv_id=GLACFORMER_TRAINING-$MASTER_ADDR-$MASTER_PORT --rdzv_backend=c10d --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT $script --continue_training $CONTINUE_TRAINING --num_epochs=$NUM_EPOCHS --token $HF_TOKEN
+    torchrun --nnodes=$NUM_NODES --nproc-per-node=gpu --rdzv_id=GLACFORMER_TRAINING-$MASTER_ADDR-$MASTER_PORT --rdzv_backend=c10d --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT $script --continue_training $CONTINUE_TRAINING --num_epochs=$NUM_EPOCHS --token $HF_TOKEN --jobname $JOBNAME
 else
     echo "STANDALONE TRAINING"
     ml ruse
     export WANDB_MODE=disabled
-    ruse torchrun --nnodes=1 --nproc-per-node=gpu --standalone $script --continue_training $CONTINUE_TRAINING --num_epochs=$NUM_EPOCHS --token $HF_TOKEN
-    CLEANUP="True"
+    ruse torchrun --nnodes=1 --nproc-per-node=gpu --standalone $script --continue_training $CONTINUE_TRAINING --num_epochs $NUM_EPOCHS --token $HF_TOKEN --jobname "$JOBNAME"
+    export CLEANUP="True"
 fi
 
 if [ "$CLEANUP" = "True" ]; then

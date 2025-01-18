@@ -15,3 +15,5 @@ inference_dataset/*
 training/eval_cache
 *.lock
 remora*
+*.ruse
+torchrun-*

@@ -13,7 +13,7 @@ torchvision
 opencv-python
 evaluate
 huggingface
-huggingface_hub[cli]
+
 albumentations
 accelerate
 wandb

@@ -2,7 +2,6 @@ numpy
 scikit-learn
 gradio
 datasets
-transformers[torch]
 pillow
 -i https://download.pytorch.org/whl/cu124
 torch
@@ -14,7 +13,5 @@ opencv-python
 evaluate
 huggingface
 
-albumentations
-accelerate
-wandb
+
 matplotlib

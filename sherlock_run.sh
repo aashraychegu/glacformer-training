@@ -11,6 +11,10 @@ module reset
 source $HOME/.bash_profile
 module restore default
 pip install -r requirements.txt
+pip install -U transformers[torch]
+pip install -U albumentations
+pip install -U accelerate
+pip install -U wandb
 pip cache purge
 echo "Installed all required packages"
 nvidia-smi
@@ -29,7 +33,7 @@ NUM_NODES=1
 WANDB_ACTIVE="False"
 SESSION_NAME="GLACFORMER_TRAINING_SESSION_AASHRAYC"
 TESTING="True"
-CLEANUP="False"
+CLEANUP="True"
 JOBNAME="$SLURM_JOB_NAME-$SLURM_JOBID[$MASTER_NODE($SLURMD_NODENAME)-$SLURM_NODELIST]{QTIME:($(squeue -j $SLURM_JOB_ID -o "%V" -h))|STIME:($(date -d @$SLURM_JOB_START_TIME))|CTIME($(date))}@(Stanford Sherlock Cluster)"
 
 # Parse command-line arguments
@@ -71,10 +75,19 @@ if [ "$TESTING" = "False" ]; then
 else
     echo "STANDALONE TRAINING"
     ml ruse
-    export WANDB_MODE=disabled
     ruse torchrun --nnodes=1 --nproc-per-node=gpu --standalone $script --continue_training $CONTINUE_TRAINING --num_epochs $NUM_EPOCHS --token $HF_TOKEN --jobname "$JOBNAME"
     export CLEANUP="True"
+    while true; do
+        echo "Press any key to continue"
+        read -rsn1 key  # Read a single character silently
+        if [[ -n "$key" ]]; then
+            echo "Program terminated."
+            break  # Exit the loop if a key is pressed
+        fi
+    done
 fi
+
+
 
 if [ "$CLEANUP" = "True" ]; then
     rm -rf ./glacformer/*

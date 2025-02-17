@@ -60,35 +60,30 @@ else
     echo "WANDB DISABLED"
     export WANDB_MODE=disabled
 fi
+export WANDB_PROJECT="glacformer_training" 
 
 export HF_TOKEN="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"
 huggingface-cli whoami
 huggingface-cli env
 
-export TORCH_DISTRIBUTED_DEBUG=DETAIL
 export NCCL_DEBUG=INFO
 export NCCL_P2P_LEVEL=NVL
 export TORCH_DISTRIBUTED_DEBUG=DETAIL
 
 if [ "$TESTING" = "False" ]; then
     torchrun --nnodes=$NUM_NODES --nproc-per-node=gpu --rdzv_id=GLACFORMER_TRAINING-$MASTER_ADDR-$MASTER_PORT --rdzv_backend=c10d --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT $script --continue_training $CONTINUE_TRAINING --num_epochs=$NUM_EPOCHS --token $HF_TOKEN --jobname $JOBNAME
+    EXIT_CODE=$?
+    echo "EXIT_CODE: $EXIT_CODE"
 else
     echo "STANDALONE TRAINING"
     ml ruse
     ruse torchrun --nnodes=1 --nproc-per-node=gpu --standalone $script --continue_training $CONTINUE_TRAINING --num_epochs $NUM_EPOCHS --token $HF_TOKEN --jobname "$JOBNAME"
-    export CLEANUP="True"
-    while true; do
-        echo "Press any key to continue"
-        read -rsn1 key  # Read a single character silently
-        if [[ -n "$key" ]]; then
-            echo "Program terminated."
-            break  # Exit the loop if a key is pressed
-        fi
-    done
+    EXIT_CODE=$?
+    echo "EXIT_CODE: $EXIT_CODE"
 fi
-
-
 
 if [ "$CLEANUP" = "True" ]; then
     rm -rf ./glacformer/*
 fi
+
+exit $EXIT_CODE

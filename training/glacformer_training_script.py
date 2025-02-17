@@ -10,7 +10,7 @@ import evaluate
 import huggingface_hub
 import albumentations as A
 from datasets import load_dataset
-from transformers import TrainingArguments, Trainer
+from transformers import TrainingArguments, Trainer, TrainerCallback
 from transformers import (
     SegformerImageProcessor,
     SegformerConfig,
@@ -24,10 +24,9 @@ import shutil
 import torch.nn.functional as F
 import math
 from better_scheduler import better_scheduler
-os.environ["WANDB_PROJECT"] = "glacformer_training" 
-os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
-os.environ["NCCL_DEBUG"] = "INFO"
-torch.backends.cuda.matmul.allow_tf32 = True
+
+# torch.backends.cuda.matmul.allow_tf32 = True
+
 parent_dir = pathlib.Path(__file__).resolve().parent
 
 import transformers
@@ -203,7 +202,7 @@ subdirs = [d for d in glacformer_checkpoints_dir.iterdir() if d.is_dir()]
 sorted_subdirs = sorted(subdirs, key=lambda d: d.stat().st_mtime,reverse=True)
 
 if load_from == "checkpoint" and (len(sorted_subdirs) > 0):
-    print("Starting from Previous Checkpoint [001]")
+    print("Starting from Previous Checkpoint")
     output_directory = sorted_subdirs[0]
 else:
     output_directory=glacformer_checkpoints_dir / args.jobname
@@ -224,43 +223,66 @@ training_args = TrainingArguments(
     hub_model_id=hf_model_name,  # The model ID on the Hugging Face model hub
     report_to="wandb",
     run_name=args.jobname,
-    per_device_train_batch_size=116,
+    per_device_train_batch_size=120,
     push_to_hub=True,
     batch_eval_metrics=True,
     hub_strategy="end",
+    ignore_data_skip=True,
     logging_first_step = True,
     remove_unused_columns=False,
     optim = "adamw_torch_fused",
     learning_rate=learning_rate,  # The initial learning rate for Adam
     logging_strategy = "epoch",
-    overwrite_output_dir = (load_from == "checkpoint"),
+    overwrite_output_dir = True,
+    per_device_eval_batch_size = 40,
+    ddp_backend=["nccl", "mpi", "ccl", "gloo", "hccl"][0], 
+    # fsdp="auto_wrap",
+    dataloader_drop_last=True,
+    # dataloader_persistent_workers=True,
 
     # - Try this during winter quarter - torch_compile=True,
     # - Try this during winter quarter - # deepspeed=./config.json
 )
 
+class CustomTrainer(Trainer):
+    def create_optimizer_and_scheduler(self, num_training_steps: int):
+    # Create the custom optimizer with fused AdamW
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=learning_rate, fused=True)
+        # Create custom learning rate scheduler using better_scheduler
+        lr_scheduler_instance = better_scheduler(
+            optimizer,
+            first_cycle_steps=300*10,
+            cycle_mult=1.5,
+            max_lr=learning_rate,
+            min_lr=learning_rate / 1e4,
+            warmup_steps=100,
+            gamma=0.8,
+        )
+        self.optimizer = optimizer
+        self.lr_scheduler = lr_scheduler_instance
+        return self.optimizer, self.lr_scheduler
+    
 
-# Define the trainer
-optim = torch.optim.AdamW(testmodel.parameters(),lr = learning_rate,fused=True)
-lr_sched = better_scheduler(
-    optim,
-    first_cycle_steps=500,  # Total length of first cycle (including warmup)
-    cycle_mult=1.5,          # Keep cycle length constant
-    max_lr=learning_rate,             # Maximum learning rate
-    min_lr=learning_rate/(1e4),            # Minimum learning rate
-    warmup_steps=100,       # Warmup steps at start of each cycle
-    gamma=0.8,               # Reduce max_lr by .8 after each cycle
-    # verbose = True
-)
-trainer = Trainer(
+class PrintBatchSizeCallback(TrainerCallback):
+    def on_step_begin(self, args, state, control, **kwargs):
+        # Get the current batch size
+        # batch_size = kwargs['train_dataloader'].batch_size
+        # print(f"Batch size: {batch_size}")
+        # print(kwargs.keys(),kwargs["train_dataloader"])
+        print(state.train_batch_size)
+
+trainer = CustomTrainer(
     model=testmodel,
     args=training_args,
     train_dataset=train_ds,
     eval_dataset=test_ds,
     compute_metrics=compute_metrics,
-    optimizers=(optim,lr_sched)
+    # callbacks=[PrintBatchSizeCallback],
+    
 )
 
-print(load_from, "[002]")
-if load_from == "checkpoint": trainer.train(resume_from_checkpoint=True)
-else: trainer.train()
+print(any(output_directory.iterdir()) and output_directory.exists(),any(output_directory.iterdir()), output_directory.exists())
+if output_directory.exists() and any(output_directory.iterdir()):
+    trainer.train(resume_from_checkpoint=True)
+else:
+    trainer.train()
